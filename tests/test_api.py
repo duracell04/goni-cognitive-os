@@ -2,11 +2,34 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from goni.api.main import create_app
+from goni.api.main import create_app as create_compat_app
+from goni.decide.server import create_app
+from goni.memory.sqlite_mem import SQLiteMemory
+
+
+def seed_perception(db_path):
+    memory = SQLiteMemory(db_path)
+    memory.init_db()
+    memory.save_perception(
+        {
+            "active_window": "VS Code",
+            "change_ratio": 0.42,
+            "ocr_text": "Traceback\nValueError: invalid literal",
+            "ui_elements": [
+                {
+                    "type": "ButtonControl",
+                    "name": "Run",
+                    "automation_id": "run-button",
+                    "bbox": [120, 80, 160, 110],
+                }
+            ],
+            "screenshot_path": "data/screenshots/screen_test.png",
+        }
+    )
 
 
 def test_health_returns_ok(tmp_path):
-    app = create_app(db_path=tmp_path / "goni.sqlite3")
+    app = create_app(db_path=tmp_path / "goni.db")
 
     with TestClient(app) as client:
         response = client.get("/health")
@@ -15,50 +38,81 @@ def test_health_returns_ok(tmp_path):
     assert response.json()["status"] == "ok"
 
 
-def test_context_returns_stub_shape(tmp_path):
-    app = create_app(db_path=tmp_path / "goni.sqlite3")
+def test_api_main_reexports_canonical_app_factory(tmp_path):
+    app = create_compat_app(db_path=tmp_path / "goni.db")
+
+    with TestClient(app) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_context_returns_empty_state_before_perception(tmp_path):
+    app = create_app(db_path=tmp_path / "goni.db")
+
+    with TestClient(app) as client:
+        response = client.get("/context")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "empty",
+        "message": "No perception captured yet. Run python -m goni.perceive.perceive first.",
+    }
+
+
+def test_context_returns_latest_seeded_perception(tmp_path):
+    db_path = tmp_path / "goni.db"
+    seed_perception(db_path)
+    app = create_app(db_path=db_path)
 
     with TestClient(app) as client:
         response = client.get("/context")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["active_app"] == "GONI Stub Desktop"
-    assert payload["visible_text"] == [
-        "FastAPI skeleton active",
-        "Local perception placeholder",
-    ]
-    assert payload["screen_changed"] is True
-    assert payload["cursor_position"] == {"x": 420, "y": 330}
-    assert payload["ui_elements"][0]["bbox"] == [120, 80, 160, 110]
+    assert payload["status"] == "ok"
+    assert payload["context"]["active_window"] == "VS Code"
+    assert payload["context"]["change_ratio"] == 0.42
+    assert payload["context"]["ocr_text"] == "Traceback\nValueError: invalid literal"
+    assert payload["context"]["ui_elements"][0]["bbox"] == [120, 80, 160, 110]
 
 
-def test_command_returns_stub_answer_and_logs_action(tmp_path):
-    db_path = tmp_path / "goni.sqlite3"
+def test_command_returns_placeholder_without_network_call(tmp_path):
+    db_path = tmp_path / "goni.db"
+    seed_perception(db_path)
     app = create_app(db_path=db_path)
 
     with TestClient(app) as client:
         response = client.post(
             "/command",
-            json={"message": "What am I looking at?", "provider": "stub"},
+            json={"text": "What am I looking at?"},
         )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["logged_action_id"] == 1
-    assert payload["answer"] == (
-        "Stub response for 'What am I looking at?'. "
-        "Active app: GONI Stub Desktop. "
-        "Visible text items: 2. "
-        "UI elements: 2."
-    )
+    assert payload["status"] == "ok"
+    assert payload["provider"] == "local_qwen_pending"
+    assert payload["route_reason"] == "local_model_placeholder"
+    assert payload["active_window"] == "VS Code"
+    assert payload["ocr_context_preview"] == "Traceback\nValueError: invalid literal"
+    assert payload["ui_elements"][0]["name"] == "Run"
+    assert payload["next_step"] == "Send screenshot_path + OCR/UI map to local Qwen2.5-VL."
 
     with sqlite3.connect(db_path) as connection:
-        row = connection.execute(
-            "SELECT user_input, provider, result FROM actions WHERE id = 1"
-        ).fetchone()
+        rows = connection.execute(
+            "SELECT event_type FROM session_logs ORDER BY id"
+        ).fetchall()
 
-    assert row is not None
-    assert row[0] == "What am I looking at?"
-    assert row[1] == "stub"
-    assert "Stub response" in row[2]
+    assert ("user_command",) in rows
+    assert ("assistant_answer",) in rows
+
+
+def test_desktop_action_is_disabled_by_default(tmp_path):
+    app = create_app(db_path=tmp_path / "goni.db")
+
+    with TestClient(app) as client:
+        response = client.post("/act/desktop", json={"action": "mouse.click"})
+
+    assert response.status_code == 200
+    assert response.json()["reason"] == "desktop_actions_disabled"
