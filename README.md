@@ -128,7 +128,7 @@ action log • project memory • learned facts • user preferences
 
 ## Vision API Strategy
 
-GONI Cognitive OS should build its Copilot Vision-style capability as a local perception engine plus a swappable reasoning layer. The default runtime direction is `mss`/`DXcam`, OpenCV, PaddleOCR, an evaluated UI parser such as OmniParser or Windows UI Automation, FastAPI, SQLite, and one reliable brain provider at a time.
+GONI Cognitive OS should build its Copilot Vision-style capability as a local perception engine plus a swappable reasoning layer. The default V1 runtime direction is `mss`/`DXcam`, OpenCV, PaddleOCR, Windows UI Automation, FastAPI, SQLite, and Gemini Flash-Lite as the on-demand vision brain.
 
 See [Vision API Strategy](docs/vision-api-strategy.md) for the API decision notes, alternatives, safety posture, and V1 vision-only workflow.
 
@@ -136,7 +136,7 @@ See [Vision API Strategy](docs/vision-api-strategy.md) for the API decision note
 
 ## Current Hybrid V1 Scaffold
 
-The executable V1 backend is intentionally local-first. It exposes a real perception-kernel shape while keeping model calls, desktop actions, voice, and cloud fallback disabled placeholders.
+The executable V1 backend keeps the live loop local and calls external vision models only when the user asks a screen question. Gemini is the default on-demand vision brain, Grok is the reasoning fallback, and local Qwen remains a later offline/private mode.
 
 ```text
 screen capture
@@ -145,7 +145,7 @@ screen capture
 -> Windows UI Automation foreground map
 -> SQLite perception log
 -> FastAPI context API
--> local Qwen placeholder
+-> Gemini Flash-Lite on demand
 ```
 
 Install the full local perception runtime:
@@ -178,8 +178,23 @@ Implemented endpoints:
 
 * `GET /health` returns service status and version.
 * `GET /context` returns the latest SQLite perception or a clear empty-state message.
-* `POST /command` accepts `{ "text": "..." }` and returns active-window, OCR, UIA, screenshot-path, and local-Qwen next-step context without making a model call.
+* `POST /command` accepts `{ "text": "...", "provider": "auto" }`, where provider can be `auto`, `gemini`, `grok`, or `local`.
+* Gemini/Grok calls only happen from `/command`; the perception loop never streams screen frames to a model.
+* Missing API keys return clear provider-unavailable responses instead of crashing.
 * `POST /act/desktop` is present as a blocked placeholder; it does not execute desktop actions.
+
+Default provider setup:
+
+```env
+DEFAULT_VISION_PROVIDER=gemini
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-2.5-flash-lite
+
+XAI_API_KEY=
+GROK_MODEL=grok-4.3
+
+LOCAL_LLM_ENABLED=false
+```
 
 OmniParser is not a runtime dependency in this scaffold. It remains a planned spike to validate local installation, hardware fit, latency, and bounding-box quality before committing it to the perception layer.
 

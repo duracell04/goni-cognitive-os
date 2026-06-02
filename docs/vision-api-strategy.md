@@ -1,37 +1,36 @@
 # Vision API Strategy
 
-GONI Cognitive OS should pair a local perception engine with a cloud or local vision/reasoning model. The first executable backend is the GONI Perception Kernel: local capture, diffing, OCR, UI Automation, SQLite perception storage, and API exposure before any provider is added. Codex in VS Code can help build the project, but runtime API use is separate from a ChatGPT Pro/Codex subscription; OpenAI documents ChatGPT and API platform billing as separate systems. ([OpenAI Help Center][1])
+GONI Cognitive OS pairs a local perception engine with on-demand vision and reasoning models. The always-on layer stays local: screen capture, diffing, OCR, Windows UI Automation, SQLite context, and FastAPI. Model calls happen only when the user asks a screen question.
 
-The practical architecture is:
+The V1 routing decision is:
 
 ```text
 local screen capture
-→ OCR / UI parsing
-→ structured context
-→ local Qwen placeholder first, then one selected LLM provider
-→ answer / highlight / canvas update
+-> OCR / UI parsing
+-> structured context
+-> Gemini Flash-Lite by default
+-> Grok fallback for stronger reasoning
+-> Qwen later for offline/private mode
 ```
 
 ## Copilot Vision API Position
 
-Do not assume there is a public, reusable “Copilot Vision API” for this project.
+Do not assume there is a public, reusable "Copilot Vision API" for this project.
 
 Microsoft Copilot Vision is best treated as a Microsoft product feature rather than a general API that can be plugged into a custom desktop app. Microsoft describes it as an opt-in assistant that can view a shared screen, app, browser, or mobile camera feed and answer through Copilot Voice/text. It can highlight relevant screen areas, but Microsoft states that it does not click, type, or scroll on the user's behalf. ([Microsoft Support][2])
-
-Microsoft also offers Copilot Studio Computer Use for enterprise agents that interact with websites and desktop apps, but that belongs to the Power Platform / enterprise agent ecosystem. It is not the same as a public consumer Copilot Vision API for a local desktop application. ([The Verge][3])
 
 For GONI Cognitive OS, build the Copilot Vision-style layer directly:
 
 ```text
 local perception engine
-→ structured screen context
-→ VLM / LLM reasoning API
-→ explanation, highlight, canvas update, or approved tool call
+-> structured screen context
+-> on-demand VLM / LLM reasoning API
+-> explanation, highlight, canvas update, or approved tool call
 ```
 
 ## Local Perception Engine
 
-The visual engine should start local. It does not need an external API for every frame.
+The visual engine starts local and should not send the user's full screen to an AI model every second.
 
 Core local components:
 
@@ -43,10 +42,10 @@ Core local components:
    OpenCV frame diff
 
 3. OCR
-   PaddleOCR / Tesseract / Google Cloud Vision OCR if cloud OCR is needed
+   PaddleOCR / Tesseract
 
 4. UI structure
-   OmniParser spike, Windows UI Automation, pywinauto
+   Windows UI Automation, pywinauto, OmniParser spike later
 
 5. Context cache
    SQLite
@@ -54,14 +53,9 @@ Core local components:
 6. Backend
    FastAPI
 
-7. Interface
-   Tauri/Electron + React overlay/canvas
-
-8. AI brain
-   local stub first, then one selected provider
+7. AI brain
+   Gemini Flash-Lite default, Grok fallback, Qwen later/offline
 ```
-
-The system should not send the user's full screen to an AI model every second. It should capture locally, detect meaningful changes, run local OCR/UI parsing where possible, and send only relevant screenshots and structured context when the user asks a question or starts a workflow.
 
 OmniParser is worth evaluating because a local parser that returns bounding boxes and element types would let the orchestrator send compact JSON instead of raw pixels. Treat it as a spike before dependency commitment: verify local installation, hardware requirements, latency, and output quality on real desktop screenshots.
 
@@ -71,150 +65,97 @@ The current scaffold is deliberately smaller than the full target stack:
 
 ```text
 screen capture
-→ OpenCV diff gate
-→ PaddleOCR
-→ Windows UI Automation foreground map
-→ SQLite perception log
-→ FastAPI /context
-→ /command local-Qwen placeholder
+-> OpenCV diff gate
+-> PaddleOCR
+-> Windows UI Automation foreground map
+-> SQLite perception log
+-> FastAPI /context
+-> /command Gemini-first router
 ```
 
-The implemented API boundary is:
+Implemented API boundary:
 
 * `GET /health`
 * `GET /context`
-* `POST /command` with `{ "text": "..." }`
+* `POST /command` with `{ "text": "...", "provider": "auto" }`
 * `POST /act/desktop` as a blocked placeholder
 
-This keeps V1 testable without API keys, LM Studio, cloud accounts, or OmniParser runtime dependencies. The perception runner is available separately as `python -m goni.perceive.perceive` after installing `requirements.txt`.
+This keeps V1 testable without API keys, LM Studio, cloud accounts, or OmniParser runtime dependencies. Real provider calls only happen from `/command` when keys are configured. The perception runner is available separately as `python -m goni.perceive.perceive` after installing `requirements.txt`.
 
-## API Options
+## Provider Strategy
 
-### OpenAI Responses API
+### Gemini Flash-Lite
 
-OpenAI Responses API is a possible later cloud-provider candidate for GONI Cognitive OS because it supports the vision, reasoning, and tool-calling workflow the project may need. The executable V1 scaffold does not wire OpenAI yet; it exposes local perception context and a local-Qwen placeholder until the local pipeline is stable. OpenAI's vision docs describe image inputs for multimodal applications, including image analysis through the Responses API. ([OpenAI Platform][4])
+Gemini is the default V1 vision brain for speed and low cost. Google's pricing page currently lists `gemini-2.5-flash-lite` as Flash-Lite and describes it as the smallest, most cost-effective model for at-scale usage. The live perception loop must not stream frames to Gemini; `/command` sends only the current screenshot/context when the user asks. ([Google AI for Developers][7])
 
-Use OpenAI for:
+Use Gemini for:
 
-* screenshot understanding;
-* “what am I looking at?” answers;
-* code-line explanation;
-* visual tutoring;
-* structured JSON tool calls;
-* mind-map and canvas instruction generation;
-* later computer-use actions.
+* "What am I looking at?"
+* "Explain this error."
+* "What should I click?"
+* "Summarize this screen."
+* "Turn this into a mind map node."
 
-The local app should:
+### xAI Grok API
 
-```text
-GONI local app:
-  - captures screen
-  - extracts OCR/UI context
-  - sends screenshot + context to OpenAI
-  - receives answer or tool call
-  - updates overlay/canvas
-  - asks approval before action
-```
+Grok is the V1 reasoning fallback, not the default screenshot explainer. xAI documents `grok-4.3` with text and image modalities, a 1M context window, function calling, structured outputs, and configurable reasoning. xAI's image-understanding docs show image input through an OpenAI-compatible API base URL. ([xAI Grok 4.3][10], [xAI Image Understanding][11])
 
-OpenAI's computer-use docs describe a loop where the model receives screenshots, returns actions such as clicks, typing, or scrolling, the harness executes them, and updated screenshots are sent back until the model stops requesting actions. ([OpenAI Platform][5])
+Use Grok for stronger agentic reasoning, workflow critique, or when Gemini returns a weak/error result.
 
-For actual computer use, keep strict safety controls: sandboxing, allowlisted actions/domains, and human confirmation for purchases, authenticated workflows, destructive operations, or anything hard to reverse.
+### Qwen Local
 
-### Anthropic Claude Computer Use
+Qwen is not the always-on eye. Keep Qwen as a later local/offline/private mode. The continuous loop remains OCR/UIA/diff/SQLite; local Qwen should only be called on user request after explicit configuration.
 
-Claude Computer Use is the strongest alternative for desktop-agent experiments. Anthropic documents screenshot, mouse, keyboard, and desktop automation capabilities for computer-use workflows. ([Claude API Docs][6])
+### OpenAI and Claude
 
-Use Claude when comparing agentic desktop-control performance. For the first GONI version, keep provider work out of the skeleton until the local API and memory loop are reliable.
-
-Claude-style computer use needs the same safety posture: virtual machines or containers, minimal privileges, domain allowlists, and human confirmation for consequential actions.
-
-### Google Gemini API
-
-Gemini is a useful multimodal alternative for image understanding. Google's Gemini docs describe multimodal models that handle image captioning, classification, and visual question answering without training specialized ML models. The API supports images inline or through the File API. ([Google AI for Developers][7])
-
-Use Gemini as a second model for comparison or as a fallback if pricing, latency, or quality is better for repeated image-understanding tasks.
-
-### Google Cloud Vision / Azure AI Vision
-
-OCR and object-detection APIs are useful helper services, not the main “brain” for GONI Cognitive OS. They can extract text, labels, handwriting, and bounding boxes, but they do not reason over user intent like a VLM/LLM.
-
-Example helper flow:
-
-```text
-Google Cloud Vision OCR:
-screenshot → text + bounding boxes
-
-OpenAI:
-screenshot + OCR + user question → explanation / action plan
-```
-
-Google Cloud Vision OCR supports text detection, dense document text detection, and handwriting extraction. ([Google Cloud][8])
+OpenAI and Claude are not used in V1. OpenAI remains a possible later tool-calling provider. Claude remains useful later for planning-heavy or computer-use benchmarking, with the same sandboxing and approval posture.
 
 ## Recommended GONI Stack
 
-Use this stack for the first implementation:
-
 ```text
-Local:
-- mss or DXcam
+PERCEIVE:
+- mss/DXcam
 - OpenCV
-- PaddleOCR first, Google Cloud Vision OCR optional later
-- OmniParser spike / Windows UI Automation
-- FastAPI
+- PaddleOCR
+- Windows UI Automation
+- OmniParser spike later
+
+DECIDE:
+- Gemini Flash-Lite default
+- Grok reasoning fallback
+- Qwen later for offline/private mode
+
+MEMORY:
 - SQLite
-- Tauri/Electron overlay
-- React Flow canvas
 
-API:
-- local Qwen placeholder for the current scaffold
-- one selected LLM provider after the local loop is stable
-- OpenAI Responses API as a strong candidate for vision + reasoning + tool calling
-- OpenAI Realtime API later for voice
-- Optional Claude Computer Use for benchmarking
-- Optional Gemini API for model comparison
+ORCHESTRATOR:
+- FastAPI + WebSockets later
+
+VOICE:
+- whisper.cpp + edge-tts later
+- Gemini Live later only if low-latency voice becomes worth the cost
+
+ACTIONS:
+- PyAutoGUI / Playwright later, approval-gated
 ```
-
-The first build should be vision-only assistance, not autonomous computer use:
-
-```text
-capture screen
-→ run OCR/UI parse
-→ user asks question
-→ send screenshot + context to OpenAI
-→ answer + optional highlight region
-→ save explanation to canvas
-```
-
-That gives the project the Copilot Vision-style experience without prematurely adding high-risk desktop control.
 
 ## Minimum API Set
 
-### Required
+No API key is required to run the perception loop and tests.
 
-No API key is required for the current skeleton.
-
-After the local loop is stable, use one selected provider key for:
+For the Gemini-first V1 router:
 
 ```text
-vision understanding
-chat
-structured JSON output
-canvas instruction generation
+GEMINI_API_KEY
 ```
 
-### Optional Later
+Optional fallback:
 
-Use OpenAI Realtime API for low-latency speech-to-speech and voice-agent interaction. ([OpenAI Platform][9])
-
-Use Google Cloud Vision API if local OCR is weak or slow.
-
-Use Anthropic API to benchmark Claude's computer-use loop.
-
-Use Gemini API as a second vision model or cheaper/faster fallback.
+```text
+XAI_API_KEY
+```
 
 ## V1 Build Flow
-
-The build-it-yourself “Copilot Vision” loop is:
 
 ```text
 1. Local screen watcher
@@ -224,80 +165,48 @@ The build-it-yourself “Copilot Vision” loop is:
 
 2. OCR/UI parser
    - extracts visible text
-   - detects boxes/buttons/menus
-   - maps text to screen coordinates
+   - reads foreground UI elements
+   - maps text/elements to screen coordinates
 
 3. Context object
    {
-     active_app,
-     visible_text,
+     active_window,
+     ocr_text,
      ui_elements,
-     screenshot_path,
-     cursor_position,
-     last_user_question
+     screenshot_path
    }
 
-4. AI call
-   Send:
-   - user question
-   - screenshot
-   - OCR text
-   - UI elements
-   - current mode: tutor / builder / guide
+4. User asks a question
+   - send current screenshot or compressed image
+   - send OCR text
+   - send UI elements
+   - send active window
 
-5. Response
-   AI returns:
-   - explanation
-   - highlight region
-   - canvas node
-   - optional tool call
-
-6. UI output
-   - answer in chat
-   - speak aloud later
-   - highlight screen area
-   - add node to mind map
+5. Router
+   - Gemini by default
+   - Grok if explicitly requested or Gemini is weak/error
+   - local Qwen only if offline/private mode is enabled later
 ```
 
 ## Final Recommendation
 
-Build the Copilot Vision-style engine locally first and keep the brain swappable. Do not wait for a Microsoft Copilot Vision API.
+Build the Copilot Vision-style engine locally first and keep model calls on-demand. Do not wait for a Microsoft Copilot Vision API.
 
 The V1 target is:
 
 ```text
 GONI Vision Engine
-= mss/DXcam + OpenCV + PaddleOCR + evaluated UI parser + FastAPI + selected LLM provider
+= mss/DXcam + OpenCV + PaddleOCR + Windows UIA + FastAPI + Gemini Flash-Lite
 ```
 
-Then add:
+Cost control rule:
 
 ```text
-GONI Voice
-= OpenAI Realtime API or whisper.cpp
-
-GONI Canvas
-= React Flow
-
-GONI Actions
-= PyAutoGUI / Playwright / PowerShell with approval gates
+Never stream the screen continuously. Send only on question.
 ```
-
-The first demo should answer:
-
-> “What am I looking at?”
-> “Explain this line.”
-> “Highlight the important part.”
-> “Add this to my mind map.”
-
-That is the realistic path to a GONI Copilot Vision-style assistant.
 
 [1]: https://help.openai.com/en/articles/9039756-managing-billing-settings-on-chatgpt-web-and-platform "Managing Billing Settings on ChatGPT Web and Platform | OpenAI Help Center"
 [2]: https://support.microsoft.com/en-us/topic/using-copilot-vision-with-microsoft-copilot-3c67686f-fa97-40f6-8a3e-0e45265d425f "Using Copilot Vision with Microsoft Copilot | Microsoft Support"
-[3]: https://www.theverge.com/news/649574/microsoft-copilot-studio-computer-use-ai?utm_source=chatgpt.com "Microsoft lets Copilot Studio use a computer on its own"
-[4]: https://platform.openai.com/docs/guides/images-vision "Images and vision | OpenAI API"
-[5]: https://platform.openai.com/docs/guides/tools-computer-use "Computer use | OpenAI API"
-[6]: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/computer-use-tool "Computer use tool - Claude API Docs"
-[7]: https://ai.google.dev/gemini-api/docs/vision "Gemini API | Google AI for Developers"
-[8]: https://cloud.google.com/vision/docs/ocr "Detect and extract text from images | Cloud Vision API | Google Cloud Documentation"
-[9]: https://platform.openai.com/docs/guides/realtime "Realtime and audio | OpenAI API"
+[7]: https://ai.google.dev/gemini-api/docs/pricing "Gemini Developer API pricing | Gemini API | Google AI for Developers"
+[10]: https://docs.x.ai/developers/models/grok-4.3 "Grok 4.3 | xAI Docs"
+[11]: https://docs.x.ai/developers/model-capabilities/images/understanding "Image Understanding | xAI Docs"
