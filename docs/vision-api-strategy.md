@@ -1,6 +1,6 @@
 # Vision API Strategy
 
-GONI Cognitive OS should pair a local perception engine with a cloud or local vision/reasoning model. The first executable backend starts with a local stub brain so the perception/cognition boundary, API contract, and SQLite logging can be tested before any provider is added. Codex in VS Code can help build the project, but runtime API use is separate from a ChatGPT Pro/Codex subscription; OpenAI documents ChatGPT and API platform billing as separate systems. ([OpenAI Help Center][1])
+GONI Cognitive OS should pair a local perception engine with a cloud or local vision/reasoning model. The first executable backend is the GONI Perception Kernel: local capture, diffing, OCR, UI Automation, SQLite perception storage, and API exposure before any provider is added. Codex in VS Code can help build the project, but runtime API use is separate from a ChatGPT Pro/Codex subscription; OpenAI documents ChatGPT and API platform billing as separate systems. ([OpenAI Help Center][1])
 
 The practical architecture is:
 
@@ -8,7 +8,7 @@ The practical architecture is:
 local screen capture
 → OCR / UI parsing
 → structured context
-→ stub brain first, then one selected LLM provider
+→ local Qwen placeholder first, then one selected LLM provider
 → answer / highlight / canvas update
 ```
 
@@ -65,33 +65,34 @@ The system should not send the user's full screen to an AI model every second. I
 
 OmniParser is worth evaluating because a local parser that returns bounding boxes and element types would let the orchestrator send compact JSON instead of raw pixels. Treat it as a spike before dependency commitment: verify local installation, hardware requirements, latency, and output quality on real desktop screenshots.
 
-## Current V1 Skeleton
+## Current V1 Perception Kernel
 
 The current scaffold is deliberately smaller than the full target stack:
 
 ```text
-mss placeholder
-→ OpenCV diff placeholder
-→ OCR placeholder
-→ structured JSON
-→ FastAPI orchestrator
-→ local stub brain
-→ SQLite action log
+screen capture
+→ OpenCV diff gate
+→ PaddleOCR
+→ Windows UI Automation foreground map
+→ SQLite perception log
+→ FastAPI /context
+→ /command local-Qwen placeholder
 ```
 
 The implemented API boundary is:
 
 * `GET /health`
 * `GET /context`
-* `POST /command` with `{ "message": "...", "provider": "stub" }`
+* `POST /command` with `{ "text": "..." }`
+* `POST /act/desktop` as a blocked placeholder
 
-This keeps V1 testable without API keys, screenshots, OCR models, or OmniParser runtime dependencies.
+This keeps V1 testable without API keys, LM Studio, cloud accounts, or OmniParser runtime dependencies. The perception runner is available separately as `python -m goni.perceive.perceive` after installing `requirements.txt`.
 
 ## API Options
 
 ### OpenAI Responses API
 
-OpenAI Responses API is a strong first cloud-provider candidate for GONI Cognitive OS because it supports the vision, reasoning, and tool-calling workflow the project needs. The executable V1 scaffold does not wire OpenAI yet; it uses the local stub brain until the local pipeline is stable. OpenAI's vision docs describe image inputs for multimodal applications, including image analysis through the Responses API. ([OpenAI Platform][4])
+OpenAI Responses API is a possible later cloud-provider candidate for GONI Cognitive OS because it supports the vision, reasoning, and tool-calling workflow the project may need. The executable V1 scaffold does not wire OpenAI yet; it exposes local perception context and a local-Qwen placeholder until the local pipeline is stable. OpenAI's vision docs describe image inputs for multimodal applications, including image analysis through the Responses API. ([OpenAI Platform][4])
 
 Use OpenAI for:
 
@@ -165,7 +166,7 @@ Local:
 - React Flow canvas
 
 API:
-- local stub brain for the current scaffold
+- local Qwen placeholder for the current scaffold
 - one selected LLM provider after the local loop is stable
 - OpenAI Responses API as a strong candidate for vision + reasoning + tool calling
 - OpenAI Realtime API later for voice

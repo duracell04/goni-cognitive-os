@@ -134,37 +134,52 @@ See [Vision API Strategy](docs/vision-api-strategy.md) for the API decision note
 
 ---
 
-## Current FastAPI Skeleton
+## Current Hybrid V1 Scaffold
 
-The executable V1 backend skeleton is intentionally local-only. It exposes the structured perception/cognition boundary without installing OCR, OmniParser, or any cloud LLM dependency yet.
+The executable V1 backend is intentionally local-first. It exposes a real perception-kernel shape while keeping model calls, desktop actions, voice, and cloud fallback disabled placeholders.
 
 ```text
-mss placeholder
--> OpenCV diff placeholder
--> OCR placeholder
--> structured JSON
--> FastAPI orchestrator
--> local stub brain
--> SQLite action log
+screen capture
+-> OpenCV diff gate
+-> PaddleOCR text extraction
+-> Windows UI Automation foreground map
+-> SQLite perception log
+-> FastAPI context API
+-> local Qwen placeholder
 ```
 
-Run the backend:
+Install the full local perception runtime:
 
 ```bash
-uv run uvicorn goni.api.main:app --reload
+pip install -r requirements.txt
 ```
+
+Run the perception loop:
+
+```bash
+python -m goni.perceive.perceive
+```
+
+Run the canonical API:
+
+```bash
+uvicorn goni.decide.server:app --reload --port 8000
+```
+
+The legacy app path still works for compatibility: `uvicorn goni.api.main:app --reload`.
 
 Run tests:
 
 ```bash
-uv run pytest
+python -m pytest
 ```
 
 Implemented endpoints:
 
 * `GET /health` returns service status and version.
-* `GET /context` returns the latest structured screen context from the stub perception layer.
-* `POST /command` accepts `{ "message": "...", "provider": "stub" }`, calls the stub brain, and logs the command to SQLite.
+* `GET /context` returns the latest SQLite perception or a clear empty-state message.
+* `POST /command` accepts `{ "text": "..." }` and returns active-window, OCR, UIA, screenshot-path, and local-Qwen next-step context without making a model call.
+* `POST /act/desktop` is present as a blocked placeholder; it does not execute desktop actions.
 
 OmniParser is not a runtime dependency in this scaffold. It remains a planned spike to validate local installation, hardware fit, latency, and bounding-box quality before committing it to the perception layer.
 
