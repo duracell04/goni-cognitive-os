@@ -128,9 +128,45 @@ action log • project memory • learned facts • user preferences
 
 ## Vision API Strategy
 
-GONI Cognitive OS should build its Copilot Vision-style capability as a local perception engine plus an AI vision/reasoning API. The default runtime direction is `mss`/`DXcam`, OpenCV, PaddleOCR, OmniParser or Windows UI Automation, FastAPI, SQLite, and OpenAI Responses API for vision, reasoning, and structured tool calls.
+GONI Cognitive OS should build its Copilot Vision-style capability as a local perception engine plus a swappable reasoning layer. The default runtime direction is `mss`/`DXcam`, OpenCV, PaddleOCR, an evaluated UI parser such as OmniParser or Windows UI Automation, FastAPI, SQLite, and one reliable brain provider at a time.
 
 See [Vision API Strategy](docs/vision-api-strategy.md) for the API decision notes, alternatives, safety posture, and V1 vision-only workflow.
+
+---
+
+## Current FastAPI Skeleton
+
+The executable V1 backend skeleton is intentionally local-only. It exposes the structured perception/cognition boundary without installing OCR, OmniParser, or any cloud LLM dependency yet.
+
+```text
+mss placeholder
+-> OpenCV diff placeholder
+-> OCR placeholder
+-> structured JSON
+-> FastAPI orchestrator
+-> local stub brain
+-> SQLite action log
+```
+
+Run the backend:
+
+```bash
+uv run uvicorn goni.api.main:app --reload
+```
+
+Run tests:
+
+```bash
+uv run pytest
+```
+
+Implemented endpoints:
+
+* `GET /health` returns service status and version.
+* `GET /context` returns the latest structured screen context from the stub perception layer.
+* `POST /command` accepts `{ "message": "...", "provider": "stub" }`, calls the stub brain, and logs the command to SQLite.
+
+OmniParser is not a runtime dependency in this scaffold. It remains a planned spike to validate local installation, hardware fit, latency, and bounding-box quality before committing it to the perception layer.
 
 ---
 

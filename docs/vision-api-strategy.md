@@ -1,14 +1,14 @@
 # Vision API Strategy
 
-GONI Cognitive OS should pair a local perception engine with a cloud or local vision/reasoning model. Codex in VS Code can help build the project, but runtime API use is separate from a ChatGPT Pro/Codex subscription; OpenAI documents ChatGPT and API platform billing as separate systems. ([OpenAI Help Center][1])
+GONI Cognitive OS should pair a local perception engine with a cloud or local vision/reasoning model. The first executable backend starts with a local stub brain so the perception/cognition boundary, API contract, and SQLite logging can be tested before any provider is added. Codex in VS Code can help build the project, but runtime API use is separate from a ChatGPT Pro/Codex subscription; OpenAI documents ChatGPT and API platform billing as separate systems. ([OpenAI Help Center][1])
 
 The practical architecture is:
 
 ```text
 local screen capture
 → OCR / UI parsing
-→ screenshot + structured context
-→ OpenAI / Claude / Gemini vision API
+→ structured context
+→ stub brain first, then one selected LLM provider
 → answer / highlight / canvas update
 ```
 
@@ -46,7 +46,7 @@ Core local components:
    PaddleOCR / Tesseract / Google Cloud Vision OCR if cloud OCR is needed
 
 4. UI structure
-   Microsoft OmniParser, Windows UI Automation, pywinauto
+   OmniParser spike, Windows UI Automation, pywinauto
 
 5. Context cache
    SQLite
@@ -58,16 +58,40 @@ Core local components:
    Tauri/Electron + React overlay/canvas
 
 8. AI brain
-   OpenAI Responses API or Claude/Gemini equivalent
+   local stub first, then one selected provider
 ```
 
 The system should not send the user's full screen to an AI model every second. It should capture locally, detect meaningful changes, run local OCR/UI parsing where possible, and send only relevant screenshots and structured context when the user asks a question or starts a workflow.
+
+OmniParser is worth evaluating because a local parser that returns bounding boxes and element types would let the orchestrator send compact JSON instead of raw pixels. Treat it as a spike before dependency commitment: verify local installation, hardware requirements, latency, and output quality on real desktop screenshots.
+
+## Current V1 Skeleton
+
+The current scaffold is deliberately smaller than the full target stack:
+
+```text
+mss placeholder
+→ OpenCV diff placeholder
+→ OCR placeholder
+→ structured JSON
+→ FastAPI orchestrator
+→ local stub brain
+→ SQLite action log
+```
+
+The implemented API boundary is:
+
+* `GET /health`
+* `GET /context`
+* `POST /command` with `{ "message": "...", "provider": "stub" }`
+
+This keeps V1 testable without API keys, screenshots, OCR models, or OmniParser runtime dependencies.
 
 ## API Options
 
 ### OpenAI Responses API
 
-OpenAI Responses API is the default recommendation for GONI Cognitive OS because it supports the vision, reasoning, and tool-calling workflow the project needs. OpenAI's vision docs describe image inputs for multimodal applications, including image analysis through the Responses API. ([OpenAI Platform][4])
+OpenAI Responses API is a strong first cloud-provider candidate for GONI Cognitive OS because it supports the vision, reasoning, and tool-calling workflow the project needs. The executable V1 scaffold does not wire OpenAI yet; it uses the local stub brain until the local pipeline is stable. OpenAI's vision docs describe image inputs for multimodal applications, including image analysis through the Responses API. ([OpenAI Platform][4])
 
 Use OpenAI for:
 
@@ -99,7 +123,7 @@ For actual computer use, keep strict safety controls: sandboxing, allowlisted ac
 
 Claude Computer Use is the strongest alternative for desktop-agent experiments. Anthropic documents screenshot, mouse, keyboard, and desktop automation capabilities for computer-use workflows. ([Claude API Docs][6])
 
-Use Claude when comparing agentic desktop-control performance. For the first GONI version, OpenAI is enough.
+Use Claude when comparing agentic desktop-control performance. For the first GONI version, keep provider work out of the skeleton until the local API and memory loop are reliable.
 
 Claude-style computer use needs the same safety posture: virtual machines or containers, minimal privileges, domain allowlists, and human confirmation for consequential actions.
 
@@ -134,14 +158,16 @@ Local:
 - mss or DXcam
 - OpenCV
 - PaddleOCR first, Google Cloud Vision OCR optional later
-- OmniParser / Windows UI Automation
+- OmniParser spike / Windows UI Automation
 - FastAPI
 - SQLite
 - Tauri/Electron overlay
 - React Flow canvas
 
 API:
-- OpenAI Responses API for vision + reasoning + tool calling
+- local stub brain for the current scaffold
+- one selected LLM provider after the local loop is stable
+- OpenAI Responses API as a strong candidate for vision + reasoning + tool calling
 - OpenAI Realtime API later for voice
 - Optional Claude Computer Use for benchmarking
 - Optional Gemini API for model comparison
@@ -164,7 +190,9 @@ That gives the project the Copilot Vision-style experience without prematurely a
 
 ### Required
 
-Use an OpenAI API key for:
+No API key is required for the current skeleton.
+
+After the local loop is stable, use one selected provider key for:
 
 ```text
 vision understanding
@@ -232,13 +260,13 @@ The build-it-yourself “Copilot Vision” loop is:
 
 ## Final Recommendation
 
-Use OpenAI API as the main brain and build the Copilot Vision engine locally. Do not wait for a Microsoft Copilot Vision API.
+Build the Copilot Vision-style engine locally first and keep the brain swappable. Do not wait for a Microsoft Copilot Vision API.
 
 The V1 target is:
 
 ```text
 GONI Vision Engine
-= mss/DXcam + OpenCV + PaddleOCR + OmniParser + FastAPI + OpenAI Responses API
+= mss/DXcam + OpenCV + PaddleOCR + evaluated UI parser + FastAPI + selected LLM provider
 ```
 
 Then add:
