@@ -126,6 +126,14 @@ action log • project memory • learned facts • user preferences
 
 ---
 
+## Vision API Strategy
+
+GONI Cognitive OS should build its Copilot Vision-style capability as a local perception engine plus an AI vision/reasoning API. The default runtime direction is `mss`/`DXcam`, OpenCV, PaddleOCR, OmniParser or Windows UI Automation, FastAPI, SQLite, and OpenAI Responses API for vision, reasoning, and structured tool calls.
+
+See [Vision API Strategy](docs/vision-api-strategy.md) for the API decision notes, alternatives, safety posture, and V1 vision-only workflow.
+
+---
+
 ## MVP Scope
 
 The first build should stay intentionally small.
