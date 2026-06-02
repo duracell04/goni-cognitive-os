@@ -78,7 +78,7 @@ def test_context_returns_latest_seeded_perception(tmp_path):
     assert payload["context"]["ui_elements"][0]["bbox"] == [120, 80, 160, 110]
 
 
-def test_command_returns_placeholder_without_network_call(tmp_path):
+def test_command_returns_gemini_unavailable_without_key(tmp_path):
     db_path = tmp_path / "goni.db"
     seed_perception(db_path)
     app = create_app(db_path=db_path)
@@ -92,12 +92,12 @@ def test_command_returns_placeholder_without_network_call(tmp_path):
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert payload["provider"] == "local_qwen_pending"
-    assert payload["route_reason"] == "local_model_placeholder"
+    assert payload["provider"] == "gemini_unavailable"
+    assert payload["route_reason"] == "provider_unavailable:missing_api_key"
     assert payload["active_window"] == "VS Code"
     assert payload["ocr_context_preview"] == "Traceback\nValueError: invalid literal"
     assert payload["ui_elements"][0]["name"] == "Run"
-    assert payload["next_step"] == "Send screenshot_path + OCR/UI map to local Qwen2.5-VL."
+    assert payload["screenshot_path"] == "data/screenshots/screen_test.png"
 
     with sqlite3.connect(db_path) as connection:
         rows = connection.execute(
@@ -106,6 +106,40 @@ def test_command_returns_placeholder_without_network_call(tmp_path):
 
     assert ("user_command",) in rows
     assert ("assistant_answer",) in rows
+
+
+def test_command_accepts_explicit_grok_provider(tmp_path):
+    db_path = tmp_path / "goni.db"
+    seed_perception(db_path)
+    app = create_app(db_path=db_path)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/command",
+            json={"text": "What should I do next?", "provider": "grok"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "grok_unavailable"
+    assert payload["route_reason"] == "provider_unavailable:missing_api_key:explicit_grok"
+
+
+def test_command_accepts_explicit_local_provider(tmp_path):
+    db_path = tmp_path / "goni.db"
+    seed_perception(db_path)
+    app = create_app(db_path=db_path)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/command",
+            json={"text": "Explain privately", "provider": "local"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "local_qwen_disabled"
+    assert payload["route_reason"] == "local_model_disabled"
 
 
 def test_desktop_action_is_disabled_by_default(tmp_path):
