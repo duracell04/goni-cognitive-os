@@ -22,8 +22,17 @@ DIFF_THRESHOLD = float(os.getenv("DIFF_THRESHOLD", "0.02"))
 POLL_INTERVAL_SECONDS = float(os.getenv("POLL_INTERVAL_SECONDS", "0.5"))
 OCR_CHAR_LIMIT = int(os.getenv("OCR_CHAR_LIMIT", "3000"))
 
-LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:1234/v1")
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "qwen2.5-vl-7b-instruct")
+DEFAULT_VISION_PROVIDER = os.getenv("DEFAULT_VISION_PROVIDER", "gemini").lower()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+
+XAI_API_KEY = os.getenv("XAI_API_KEY", "")
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-4.3")
+XAI_BASE_URL = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1")
+
+LOCAL_LLM_ENABLED = os.getenv("LOCAL_LLM_ENABLED", "false").lower() == "true"
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:1234/v1")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "")
+
 ENABLE_DESKTOP_ACTIONS = os.getenv("ENABLE_DESKTOP_ACTIONS", "false").lower() == "true"
