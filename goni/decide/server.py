@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ class HealthResponse(BaseModel):
 
 class CommandRequest(BaseModel):
     text: str = Field(min_length=1)
+    provider: Literal["auto", "gemini", "grok", "local"] = "auto"
 
 
 class SaveKnowledgeRequest(BaseModel):
@@ -83,8 +85,8 @@ def create_app(*, db_path: str | Path = DB_PATH) -> FastAPI:
                 "message": "No perception available yet.",
             }
 
-        store.log_event("user_command", {"text": req.text})
-        result = answer_screen_question(req.text, perception)
+        store.log_event("user_command", {"text": req.text, "provider": req.provider})
+        result = answer_screen_question(req.text, perception, provider=req.provider)
         store.log_event(
             "assistant_answer",
             {
